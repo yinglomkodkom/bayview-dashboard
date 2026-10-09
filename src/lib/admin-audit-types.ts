@@ -89,6 +89,13 @@ export function getActionMeta(actionType: string) {
         badgeColor:
           "bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800/60",
       };
+    case "reset_mfa":
+      return {
+        label: "ล้างค่า 2FA",
+        category: "admin",
+        badgeColor:
+          "bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800/60",
+      };
     case "toggle_admin_status":
       return {
         label: "เปิด/ปิดการใช้งานแอดมิน",

@@ -17,6 +17,8 @@ function passwordError(password: string): string | null {
  *                     typed. The new admin replaces it at first login
  *                     (app_metadata.must_change_password), then sets up 2FA.
  *   reset_password  — typed password for another admin, same first-login rule.
+ *   reset_mfa       — remove another admin's 2FA (lost phone); they set it up
+ *                     again at their next login.
  *   update          — edit the name replies from Pending Replies are signed with.
  */
 export async function POST(request: NextRequest) {
@@ -104,6 +106,51 @@ export async function POST(request: NextRequest) {
         action_type: "reset_password",
         target: target.email || target.name_th || target.name || "Admin",
         details: `รีเซ็ตรหัสผ่านแอดมิน: ${target.email}${isSelf ? " (บัญชีตนเอง)" : ""}`,
+        status: "success",
+      });
+
+      return NextResponse.json({ success: true });
+    }
+
+    if (body.action === "reset_mfa") {
+      const { data: target } = await db
+        .from("admin_users")
+        .select("user_id, email, name, name_th")
+        .eq("id", text(body.admin_id, 64))
+        .maybeSingle();
+      if (!target) {
+        return NextResponse.json({ success: false, error: "ไม่พบแอดมินคนนี้" }, { status: 404 });
+      }
+      // Someone who can still sign in has their own app; a lost phone is the
+      // case this exists for, and another admin has to confirm it.
+      if (target.user_id === check.user.id) {
+        return NextResponse.json(
+          { success: false, error: "ล้างค่า 2FA ของบัญชีตนเองไม่ได้ ให้แอดมินคนอื่นทำให้" },
+          { status: 400 }
+        );
+      }
+
+      const { data: listed, error: listError } = await db.auth.admin.mfa.listFactors({ userId: target.user_id });
+      if (listError) throw listError;
+      const factors = listed?.factors ?? [];
+      if (factors.length === 0) {
+        return NextResponse.json(
+          { success: false, error: "แอดมินคนนี้ยังไม่ได้ตั้งค่า 2FA ไม่มีอะไรต้องล้าง" },
+          { status: 409 }
+        );
+      }
+      // Deleting a verified factor also signs the user out everywhere, so
+      // their next login goes to /mfa/enroll to set up a new authenticator.
+      for (const factor of factors) {
+        const { error } = await db.auth.admin.mfa.deleteFactor({ id: factor.id, userId: target.user_id });
+        if (error) throw error;
+      }
+
+      const { logAdminActivity } = await import("@/lib/admin-audit");
+      await logAdminActivity({
+        action_type: "reset_mfa",
+        target: target.email || target.name_th || target.name || "Admin",
+        details: `ล้างค่า 2FA ของแอดมิน: ${target.email} (ต้องตั้งค่าแอป Authenticator ใหม่ตอนเข้าสู่ระบบครั้งถัดไป)`,
         status: "success",
       });
 

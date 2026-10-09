@@ -98,7 +98,7 @@ export default function MfaEnrollPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-violet-500/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-700/10 rounded-full blur-3xl" />
       </div>
 
       <Card className="w-full max-w-md mx-4 border-zinc-800/50 bg-zinc-900/80 backdrop-blur-xl shadow-2xl shadow-black/50 relative z-10">
@@ -196,7 +196,7 @@ export default function MfaEnrollPage() {
           )}
 
           <p className="text-center text-xs text-zinc-400">
-            ทำมือถือหายหรือลบแอป Authenticator ไปแล้ว ให้ติดต่อแอดมินคนอื่นช่วยล้างค่า 2FA ให้ แล้วตั้งค่าใหม่
+            สแกน QR ไม่ได้หรือตั้งค่าไม่สำเร็จ ให้ติดต่อแอดมินคนอื่นช่วย
           </p>
           <SignOutLink />
         </CardContent>

@@ -9,6 +9,7 @@ import {
   Eye,
   EyeOff,
   ShieldCheck,
+  ShieldOff,
   History,
   Search,
   CheckCircle2,
@@ -137,6 +138,8 @@ function getFailedActionLabel(actionType: string, defaultLabel: string) {
       return "เพิ่มแอดมินไม่สำเร็จ";
     case "reset_password":
       return "รีเซ็ตรหัสผ่านไม่สำเร็จ";
+    case "reset_mfa":
+      return "ล้างค่า 2FA ไม่สำเร็จ";
     case "toggle_admin_status":
       return "ปรับสถานะแอดมินไม่สำเร็จ";
     case "update_admin":
@@ -234,6 +237,9 @@ export function AdminsClient({
 
   // Suspend / Restore Confirmation Dialog
   const [confirmToggleAdmin, setConfirmToggleAdmin] = useState<AdminRow | null>(null);
+  // Lost phone: another admin removes the 2FA so the owner can set it up again.
+  const [confirmResetMfa, setConfirmResetMfa] = useState<AdminRow | null>(null);
+  const [resettingMfa, setResettingMfa] = useState(false);
   const [togglingStatus, setTogglingStatus] = useState(false);
 
   // Tab 2: Activity Logs Filters & Pagination
@@ -419,6 +425,22 @@ export function AdminsClient({
       toast.error(err instanceof Error ? err.message : "ทำรายการไม่สำเร็จ");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleResetMfa() {
+    if (!confirmResetMfa) return;
+    setResettingMfa(true);
+    try {
+      await callApi({ action: "reset_mfa", admin_id: confirmResetMfa.id });
+      toast.success(`ล้างค่า 2FA ของ ${confirmResetMfa.email} แล้ว`, {
+        description: "เข้าสู่ระบบครั้งถัดไปจะต้องตั้งค่าแอป Authenticator ใหม่",
+      });
+      setConfirmResetMfa(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "ทำรายการไม่สำเร็จ");
+    } finally {
+      setResettingMfa(false);
     }
   }
 
@@ -641,6 +663,22 @@ export function AdminsClient({
                           <KeyRound className="w-3.5 h-3.5" />
                           รีเซ็ตรหัสผ่าน
                         </Button>
+
+                        {/* Reset 2FA: never for your own account (slot keeps rows aligned) */}
+                        <div className="sm:w-[100px] flex sm:justify-end">
+                          {!isMe && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setConfirmResetMfa(a)}
+                              className="w-full h-10 sm:h-8 text-xs font-semibold gap-1 text-zinc-600 dark:text-zinc-300 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/30 rounded-xl justify-center"
+                              title="ใช้เมื่อแอดมินคนนี้ทำมือถือหายหรือลบแอป Authenticator"
+                            >
+                              <ShieldOff className="w-3.5 h-3.5" />
+                              ล้างค่า 2FA
+                            </Button>
+                          )}
+                        </div>
 
                         {/* Soft Delete / Suspend & Restore Button Slot (fixed width keeps grid aligned) */}
                         <div className="sm:w-[104px] flex sm:justify-end">
@@ -1102,6 +1140,50 @@ export function AdminsClient({
               className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs h-9 font-semibold"
             >
               {saving ? "กำลังบันทึก..." : "ยืนยันตั้งรหัสผ่าน"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Reset 2FA Confirmation Dialog ── */}
+      <Dialog
+        open={!!confirmResetMfa}
+        onOpenChange={(o) => {
+          if (!o && !resettingMfa) setConfirmResetMfa(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md rounded-2xl bg-white dark:bg-[#27211C] border-zinc-200 dark:border-zinc-800">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+              <ShieldOff className="w-5 h-5 text-orange-500" />
+              ยืนยันการล้างค่า 2FA
+            </DialogTitle>
+            <DialogDescription className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed pt-1">
+              ล้างค่า 2FA ของบัญชี{" "}
+              <strong className="text-zinc-800 dark:text-zinc-200 font-mono">{confirmResetMfa?.email}</strong>{" "}
+              ({confirmResetMfa?.name_th || confirmResetMfa?.name})
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="list-disc space-y-1 pl-5 text-xs leading-relaxed text-zinc-700 dark:text-zinc-300">
+            <li>ใช้เมื่อเจ้าของบัญชีทำมือถือหายหรือลบแอป Authenticator ไปแล้วเท่านั้น</li>
+            <li>ก่อนกด ให้ยืนยันกับเจ้าของบัญชีโดยตรง (เจอตัวหรือโทรหา) ว่าเป็นคนขอจริง</li>
+            <li>บัญชีนี้จะถูกออกจากระบบทุกเครื่อง และต้องตั้งค่าแอป Authenticator ใหม่ตอนเข้าสู่ระบบครั้งถัดไป</li>
+          </ul>
+          <DialogFooter className="gap-2 pt-2">
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmResetMfa(null)}
+              disabled={resettingMfa}
+              className="rounded-xl text-xs h-9"
+            >
+              ยกเลิก
+            </Button>
+            <Button
+              onClick={handleResetMfa}
+              disabled={resettingMfa}
+              className="rounded-xl text-xs h-9 font-semibold text-white bg-orange-600 hover:bg-orange-700"
+            >
+              {resettingMfa ? "กำลังทำรายการ..." : "ยืนยันล้างค่า 2FA"}
             </Button>
           </DialogFooter>
         </DialogContent>
