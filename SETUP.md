@@ -152,3 +152,14 @@ docker compose up --build -d
 สีสถานะ (Success/Not Found/Unauthorized/Error — เขียว/เหลือง/ม่วง/แดง) แยกเป็นสี**สื่อความหมาย** ไม่ผูกกับธีม อยู่ที่ `src/components/dashboard/status-badge.tsx` จุดเดียว ใช้ร่วมกันทั้ง Recent Activity, Users & Chat Logs, และกราฟ Overview
 
 โลโก้ (`public/bayview-mark.png`, `src/app/icon.png` = favicon) แปลงมาจากไฟล์ Illustrator (`.ai`) ต้นฉบับ — ถ้าต้องเปลี่ยนโลโก้ใหม่ทีหลัง ไฟล์ `.ai`/`.pdf` แปลงเป็น PNG ได้ตรงๆ ด้วย `pdfjs-dist` (มีอยู่แล้วใน dependencies) ไม่ต้องพึ่งโปรแกรม Illustrator
+
+## Deploy บน Cloudflare Workers (vinext)
+
+แอปนี้ build เป็น Cloudflare Worker ได้ผ่าน [vinext](https://vinext.dev/) โดย `next dev` / `next build` / Docker ใช้ต่อได้ตามเดิม
+
+- `vite.config.ts`, `cloudflare.config.ts` — config ของ vinext + Worker (ชื่อ `bayview-dashboard`, KV binding `VINEXT_KV_CACHE` ใช้เป็น data cache)
+- สคริปต์: `npm run dev:vinext`, `npm run build:vinext`, `npm run deploy:vinext`
+- Workers Builds (Git): Build command `npm run build:vinext`, Deploy command `npx vinext-cloudflare deploy --skip-build`
+- ตัวแปร env: `NEXT_PUBLIC_*` ใส่ที่ **Build variables and secrets**; ตัวแปรลับ (`SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_API_KEY`, `N8N_WEBHOOK_URL`, `N8N_ADMIN_REPLY_URL`) ใส่เป็น secret ของ Worker
+- แผนฟรีมี CPU 10 ms/request — แนะนำ Workers Paid สำหรับใช้งานจริง (โดยเฉพาะการอัปโหลดเอกสาร SOP ที่แกะ PDF/DOCX)
+- มีไฟล์ `.npmrc` (`legacy-peer-deps=true`) เพราะ shadcn ดึง @babel/core 7 ชนกับ peer ของ vinext — ทำให้ `npm ci` บน Cloudflare ผ่าน

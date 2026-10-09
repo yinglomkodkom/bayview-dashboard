@@ -22,3 +22,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 users_profile_backup.sql
+/dist/
+.vinext/
+.cloudflare/
+.wrangler/
