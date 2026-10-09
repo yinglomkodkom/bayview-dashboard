@@ -7,6 +7,16 @@
 // is not configured" although the secret was set).
 import { env } from "cloudflare:workers";
 
-for (const [key, value] of Object.entries(env as Record<string, unknown>)) {
-  if (typeof value === "string" && process.env[key] === undefined) process.env[key] = value;
+export function copyEnv(source: unknown): string[] {
+  const copied: string[] = [];
+  if (!source || typeof source !== "object") return copied;
+  for (const [key, value] of Object.entries(source as Record<string, unknown>)) {
+    if (typeof value === "string" && process.env[key] === undefined) {
+      process.env[key] = value;
+      copied.push(key);
+    }
+  }
+  return copied;
 }
+
+export const copiedAtStartup = copyEnv(env);
