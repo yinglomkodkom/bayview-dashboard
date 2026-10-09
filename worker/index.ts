@@ -8,6 +8,7 @@
 // fresh isolate spent 100+ ms loading code and failed with Error 1102
 // ("Worker exceeded CPU time limit"). Loading it all here moves that cost
 // into startup.
+import "./env";
 import handler from "vinext/server/app-router-entry";
 
 // Server components, layouts and route handlers (rsc environment). Awaited
