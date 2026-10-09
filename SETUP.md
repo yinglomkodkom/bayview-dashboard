@@ -157,7 +157,7 @@ docker compose up --build -d
 
 แอปนี้ build เป็น Cloudflare Worker ได้ผ่าน [vinext](https://vinext.dev/) โดย `next dev` / `next build` / Docker ใช้ต่อได้ตามเดิม
 
-- `vite.config.ts`, `cloudflare.config.ts` — config ของ vinext + Worker (ชื่อ `bayview-dashboard`, KV binding `VINEXT_KV_CACHE` ใช้เป็น data cache)
+- `vite.config.ts`, `wrangler.jsonc` — config ของ vinext + Worker (ชื่อ `bayview-dashboard` ต้องตรงกับชื่อบน Cloudflare, KV binding `VINEXT_KV_CACHE` ใช้เป็น data cache ซึ่ง Wrangler สร้างให้ตอน deploy ครั้งแรก). ห้ามกลับไปใช้ `cloudflare.config.ts`: แบบนั้น deploy พังด้วย "Could not read the generated Cloudflare Build Output config" เพราะยังไม่รองรับ App Router
 - สคริปต์: `npm run dev:vinext`, `npm run build:vinext`, `npm run deploy:vinext`
 - Workers Builds (Git): Build command `npm run build:vinext`, Deploy command `npx vinext-cloudflare deploy --skip-build`
 - ตัวแปร env: `NEXT_PUBLIC_*` ใส่ที่ **Build variables and secrets**; ตัวแปรลับ (`SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_API_KEY`, `N8N_WEBHOOK_URL`, `N8N_ADMIN_REPLY_URL`) ใส่เป็น secret ของ Worker

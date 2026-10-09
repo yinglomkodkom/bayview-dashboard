@@ -11,7 +11,12 @@ export default defineConfig({
   css: { postcss: { plugins: [] } },
   plugins: [
     tailwindcss(),
+    // KV-backed data cache (fetch revalidate in lib/gemini-models.ts).
     vinext({ cache: { data: kvDataAdapter() } }),
+    // Worker settings live in wrangler.jsonc. The typed cloudflare.config.ts
+    // route needs Build Output, which does not support the App Router's
+    // rsc + ssr child environment yet ("Could not read the generated
+    // Cloudflare Build Output config" at deploy).
     cloudflare({
       viteEnvironment: {
         name: "rsc",
