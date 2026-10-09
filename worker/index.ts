@@ -8,7 +8,7 @@
 // fresh isolate spent 100+ ms loading code and failed with Error 1102
 // ("Worker exceeded CPU time limit"). Loading it all here moves that cost
 // into startup.
-import { copiedAtStartup, copyEnv } from "./env";
+import "./env";
 import handler from "vinext/server/app-router-entry";
 
 // Server components, layouts and route handlers (rsc environment). Awaited
@@ -26,27 +26,4 @@ await Promise.all(
 // bundle that vinext otherwise imports on the first page request.
 await import.meta.viteRsc.loadModule("ssr", "index");
 
-// TEMPORARY diagnostics: on the first request, log which variable NAMES the
-// Worker can see (never values), then remove once the SOP page works.
-let checked = false;
-
-const worker = {
-  ...handler,
-  fetch(request: Request, requestEnv: Record<string, unknown>, ctx: ExecutionContext) {
-    const copiedNow = copyEnv(requestEnv);
-    if (!checked) {
-      checked = true;
-      const names = (o: unknown) => (o && typeof o === "object" ? Object.keys(o).sort() : []);
-      console.log("[env-check]", JSON.stringify({
-        requestEnvNames: names(requestEnv),
-        copiedAtStartup,
-        copiedNow,
-        hasServiceRoleKey: typeof process.env.SUPABASE_SERVICE_ROLE_KEY === "string" && process.env.SUPABASE_SERVICE_ROLE_KEY.length > 0,
-        processEnvKeyCount: Object.keys(process.env).length,
-      }));
-    }
-    return handler.fetch(request, requestEnv as never, ctx);
-  },
-};
-
-export default worker;
+export default handler;
