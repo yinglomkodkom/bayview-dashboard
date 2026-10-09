@@ -4,7 +4,7 @@
   "name": "bayview-dashboard",
   "compatibility_date": "2026-10-06",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "vinext/server/fetch-handler",
+  "main": "./worker/index.ts",
   "assets": {
     "directory": "dist/client",
     "not_found_handling": "none",
