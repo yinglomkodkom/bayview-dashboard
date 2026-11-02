@@ -36,6 +36,7 @@ import {
   type SopDocumentSummary,
 } from "@/lib/sop-groups";
 import { FOCUS_RING, onActivateKey } from "@/lib/keyboard";
+import { convertPdf } from "@/lib/pdf-read-client";
 
 interface SopClientProps {
   initialDocuments: SopDocumentSummary[];
@@ -170,6 +171,7 @@ export function SopClient({ initialDocuments, configError }: SopClientProps) {
   const [documents, setDocuments] = useState(initialDocuments);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [uploadStep, setUploadStep] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -287,6 +289,7 @@ export function SopClient({ initialDocuments, configError }: SopClientProps) {
     const total = pendingFiles.length;
     let successCount = 0;
     const failed: string[] = [];
+    const notes: string[] = [];
 
     for (let i = 0; i < pendingFiles.length; i++) {
       const file = pendingFiles[i];
@@ -297,6 +300,23 @@ export function SopClient({ initialDocuments, configError }: SopClientProps) {
         formData.append("group_type", isOther ? "other" : "department");
         formData.append("group", isOther ? topic.trim() : groupChoice);
         formData.append("access", isOther ? "all" : access);
+
+        if (fileExtension(file.name) === "pdf") {
+          const pdf = await convertPdf(file, setUploadStep);
+          formData.append("converted_text", pdf.markdown);
+          formData.append("figures", JSON.stringify(pdf.figureNames));
+          formData.append(
+            "convert_note",
+            ` · ${pdf.pageCount} หน้า · ข้อความครบ ${pdf.coveragePercent}%` +
+              (pdf.restoredLines ? ` · เติมกลับ ${pdf.restoredLines} บรรทัด` : "") +
+              (pdf.removedUrls.length ? ` · ตัดลิงก์ที่ไม่มีใน PDF ${pdf.removedUrls.length}` : "")
+          );
+          if (pdf.restoredLines) {
+            toast.warning(`${file.name}: AI อ่านตกหล่น ${pdf.restoredLines} บรรทัด ระบบเติมกลับจาก PDF ให้แล้ว`);
+          }
+          notes.push(`${file.name}: รูป ${pdf.figureNames.length} รูป ข้อความครบ ${pdf.coveragePercent}%`);
+          setUploadStep("กำลังบันทึกลงระบบ");
+        }
 
         const res = await fetch("/api/documents/upload", {
           method: "POST",
@@ -326,18 +346,20 @@ export function SopClient({ initialDocuments, configError }: SopClientProps) {
         } else {
           failed.push(`${file.name}: ${data.error || "อัปโหลดไม่สำเร็จ"}`);
         }
-      } catch {
-        failed.push(`${file.name}: เชื่อมต่อไม่สำเร็จ`);
+      } catch (err) {
+        failed.push(`${file.name}: ${err instanceof Error ? err.message : "เชื่อมต่อไม่สำเร็จ"}`);
       }
     }
 
     if (successCount > 0) {
       toast.success(`อัปโหลดสำเร็จ ${successCount} จาก ${total} ไฟล์`);
     }
+    notes.forEach((msg) => toast.info(msg));
     failed.forEach((msg) => toast.error(msg));
 
     setPendingFiles([]);
     setUploadProgress(null);
+    setUploadStep("");
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -525,7 +547,7 @@ export function SopClient({ initialDocuments, configError }: SopClientProps) {
             {uploading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                กำลังอัปโหลด{uploadProgress ? ` (${uploadProgress.current}/${uploadProgress.total})` : "..."}
+                {uploadStep || "กำลังอัปโหลด"}{uploadProgress ? ` (${uploadProgress.current}/${uploadProgress.total})` : "..."}
               </>
             ) : (
               <>

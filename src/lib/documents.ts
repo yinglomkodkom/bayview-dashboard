@@ -260,12 +260,4 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
   return vectors;
 }
 
-/** Deterministic id from the filename so re-uploading the same file replaces its old chunks. */
-export function fileIdFromName(fileName: string): string {
-  const normalized = fileName.trim().toLowerCase();
-  let hash = 0;
-  for (let i = 0; i < normalized.length; i++) {
-    hash = (hash * 31 + normalized.charCodeAt(i)) >>> 0;
-  }
-  return `sop-${hash.toString(16)}`;
-}
+export { fileIdFromName } from "@/lib/sop-file-id";

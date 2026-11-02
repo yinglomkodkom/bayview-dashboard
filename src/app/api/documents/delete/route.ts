@@ -1,3 +1,4 @@
+import { SOP_IMAGES_BUCKET, figurePrefix } from "@/lib/sop-file-id";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireMfa } from "@/lib/require-mfa";
@@ -65,6 +66,14 @@ export async function POST(request: NextRequest) {
         .from(SOP_STORAGE_BUCKET)
         .remove(objects.map((o) => `${fileId}/${o.name}`));
     }
+
+    // Pictures taken from an uploaded PDF. Older manuals keep theirs under
+    // their own names, which this prefix does not match.
+    const { data: figures } = await admin.storage
+      .from(SOP_IMAGES_BUCKET)
+      .list("", { search: figurePrefix(fileId), limit: 1000 });
+    const figureNames = (figures || []).map((o) => o.name).filter((n) => n.startsWith(figurePrefix(fileId)));
+    if (figureNames.length) await admin.storage.from(SOP_IMAGES_BUCKET).remove(figureNames);
 
     const { logAdminActivity } = await import("@/lib/admin-audit");
     await logAdminActivity({

@@ -13,6 +13,7 @@ import {
   sopStoragePath,
 } from "@/lib/documents";
 import { parseSopGroup } from "@/lib/sop-groups";
+import { SOP_IMAGES_BUCKET, figurePrefix } from "@/lib/sop-file-id";
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
@@ -86,7 +87,14 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const text = await extractText(buffer, fileType);
+    // PDFs arrive already converted by the browser (src/lib/pdf-read-client.ts):
+    // the text layer alone loses Thai vowels, headings and picture positions.
+    const converted = formData.get("converted_text");
+    const text =
+      fileType === "pdf" && typeof converted === "string" && converted.trim()
+        ? converted
+        : await extractText(buffer, fileType);
+    const figureNames: string[] = JSON.parse(String(formData.get("figures") || "[]"));
 
     if (!text.trim()) {
       return NextResponse.json(
@@ -155,12 +163,23 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
+    // Pictures from an older version of this file that the new one no longer uses.
+    const { data: oldFigures } = await admin.storage
+      .from(SOP_IMAGES_BUCKET)
+      .list("", { search: figurePrefix(fileId), limit: 1000 });
+    const staleFigures = (oldFigures || [])
+      .map((o) => o.name)
+      .filter((name) => name.startsWith(figurePrefix(fileId)) && !figureNames.includes(name));
+    if (staleFigures.length) await admin.storage.from(SOP_IMAGES_BUCKET).remove(staleFigures);
+
     const dept = adminUser.department ? ` (แผนก: ${adminUser.department})` : "";
+    const figureNote = figureNames.length ? ` รูป ${figureNames.length} รูป` : "";
+    const checkNote = String(formData.get("convert_note") || "");
     const { logAdminActivity } = await import("@/lib/admin-audit");
     await logAdminActivity({
       action_type: "upload_sop",
       target: file.name,
-      details: `อัปโหลดเอกสาร SOP จำนวน ${chunks.length} ส่วน${dept} ขนาด ${(file.size / 1024).toFixed(1)} KB`,
+      details: `อัปโหลดเอกสาร SOP จำนวน ${chunks.length} ส่วน${figureNote}${dept} ขนาด ${(file.size / 1024).toFixed(1)} KB${checkNote}`,
       status: "success",
       email: adminUser.email,
       admin_name: uploadedBy,
@@ -172,6 +191,7 @@ export async function POST(request: NextRequest) {
       file_id: fileId,
       title: file.name,
       chunk_count: chunks.length,
+      figure_count: figureNames.length,
       uploaded_by: uploadedBy,
       sop_group: group,
       sop_group_type: groupType,
