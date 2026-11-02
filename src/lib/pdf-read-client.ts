@@ -8,6 +8,7 @@ import {
   nameFigures,
   removeUnknownUrls,
   stripFence,
+  tidyCodeHeadings,
 } from "@/lib/pdf-convert";
 import { figurePrefix, fileIdFromName } from "@/lib/sop-file-id";
 
@@ -259,7 +260,7 @@ export async function convertPdf(
     sections.push(urls.text);
   }
 
-  const joined = sections.join("\n\n");
+  const joined = tidyCodeHeadings(sections.join("\n\n"));
   const fileId = fileIdFromName(file.name);
   const labels = figureLabels(joined);
   const byLabel = new Map(pdf.figures.map((f) => [f.label, f]));

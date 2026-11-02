@@ -113,7 +113,7 @@ export function nameFigures(markdown: string, fileNameOf: Map<string, string>): 
  */
 export function tidyCodeHeadings(markdown: string): string {
   return markdown.replace(
-    /^(#{2,3})s+((?:SOP|IT)-[A-Z]{2,4}-d{2}[A-Z]?)s*[·:—-]?s*(?:Positions*:|ตำแหน่งs*:)?s*(.+)$/gm,
+    /^(#{2,3})\s+((?:SOP|IT)-[A-Z]{2,4}-\d{2}[A-Z]?)\s*[·:—-]?\s*(?:Position\s*:|ตำแหน่ง\s*:)?\s*(.+)$/gm,
     (_, hashes: string, code: string, name: string) => `${hashes} ${code} · ${name.trim()}`
   );
 }
