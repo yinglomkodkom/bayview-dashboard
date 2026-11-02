@@ -36,6 +36,7 @@ import {
   type SopDocumentSummary,
 } from "@/lib/sop-groups";
 import { FOCUS_RING, onActivateKey } from "@/lib/keyboard";
+import { convertDocx } from "@/lib/docx-read-client";
 import { convertPdf } from "@/lib/pdf-read-client";
 
 interface SopClientProps {
@@ -315,6 +316,18 @@ export function SopClient({ initialDocuments, configError }: SopClientProps) {
             toast.warning(`${file.name}: AI อ่านตกหล่น ${pdf.restoredLines} บรรทัด ระบบเติมกลับจาก PDF ให้แล้ว`);
           }
           notes.push(`${file.name}: รูป ${pdf.figureNames.length} รูป ข้อความครบ ${pdf.coveragePercent}%`);
+          setUploadStep("กำลังบันทึกลงระบบ");
+        } else if (fileExtension(file.name) === "docx") {
+          const docx = await convertDocx(file, setUploadStep);
+          formData.append("converted_text", docx.markdown);
+          formData.append("figures", JSON.stringify(docx.figureNames));
+          if (docx.restoredLines) {
+            formData.append("convert_note", ` · เติมกลับ ${docx.restoredLines} บรรทัด`);
+          }
+          if (docx.skippedFigures) {
+            toast.warning(`${file.name}: เก็บรูปไม่ได้ ${docx.skippedFigures} รูป เพราะเป็นรูปแบบที่เว็บเปิดไม่ได้ (เช่น EMF)`);
+          }
+          notes.push(`${file.name}: รูป ${docx.figureNames.length} รูป`);
           setUploadStep("กำลังบันทึกลงระบบ");
         }
 

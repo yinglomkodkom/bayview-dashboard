@@ -1,4 +1,4 @@
-import { SOP_IMAGES_BUCKET, figurePrefix } from "@/lib/sop-file-id";
+import { figuresOfDocument, removeFigures } from "@/lib/sop-figures";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireMfa } from "@/lib/require-mfa";
@@ -54,6 +54,9 @@ export async function POST(request: NextRequest) {
 
     const docTitle = docInfo?.title || fileId;
 
+    // Read before the rows go: their text is what says which pictures are this file's.
+    const referencedFigures = await figuresOfDocument(admin, fileId);
+
     const { error } = await admin.from("documents1").delete().eq("metadata->>file_id", fileId);
     if (error) throw error;
 
@@ -67,19 +70,13 @@ export async function POST(request: NextRequest) {
         .remove(objects.map((o) => `${fileId}/${o.name}`));
     }
 
-    // Pictures taken from an uploaded PDF. Older manuals keep theirs under
-    // their own names, which this prefix does not match.
-    const { data: figures } = await admin.storage
-      .from(SOP_IMAGES_BUCKET)
-      .list("", { search: figurePrefix(fileId), limit: 1000 });
-    const figureNames = (figures || []).map((o) => o.name).filter((n) => n.startsWith(figurePrefix(fileId)));
-    if (figureNames.length) await admin.storage.from(SOP_IMAGES_BUCKET).remove(figureNames);
+    const removedFigures = await removeFigures(admin, fileId, referencedFigures);
 
     const { logAdminActivity } = await import("@/lib/admin-audit");
     await logAdminActivity({
       action_type: "delete_sop",
       target: docTitle,
-      details: `ลบเอกสาร SOP ออกจากระบบและ Storage (รหัส: ${fileId})`,
+      details: `ลบเอกสาร SOP ออกจากระบบและ Storage พร้อมรูป ${removedFigures} รูป (รหัส: ${fileId})`,
       status: "success",
       email: adminProfile?.email || user.email,
       admin_name: adminProfile?.name_th || adminProfile?.name || user.email,

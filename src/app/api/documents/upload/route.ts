@@ -13,7 +13,7 @@ import {
   sopStoragePath,
 } from "@/lib/documents";
 import { parseSopGroup } from "@/lib/sop-groups";
-import { SOP_IMAGES_BUCKET, figurePrefix } from "@/lib/sop-file-id";
+import { figureRefs, figuresOfDocument, removeFigures } from "@/lib/sop-figures";
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
@@ -87,11 +87,12 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    // PDFs arrive already converted by the browser (src/lib/pdf-read-client.ts):
-    // the text layer alone loses Thai vowels, headings and picture positions.
+    // PDF and Word arrive already converted by the browser (pdf-read-client.ts,
+    // docx-read-client.ts), which also stores their pictures. A PDF's text layer
+    // alone loses Thai vowels and headings; both would lose where pictures go.
     const converted = formData.get("converted_text");
     const text =
-      fileType === "pdf" && typeof converted === "string" && converted.trim()
+      fileType !== "text" && typeof converted === "string" && converted.trim()
         ? converted
         : await extractText(buffer, fileType);
     const figureNames: string[] = JSON.parse(String(formData.get("figures") || "[]"));
@@ -113,6 +114,8 @@ export async function POST(request: NextRequest) {
 
     // Before touching the old copy: if Gemini fails, the current file stays.
     const embeddings = await embedTexts(chunks);
+
+    const previousFigures = await figuresOfDocument(admin, fileId);
 
     // Replace: remove any previously-ingested chunks for this same filename.
     const { error: deleteError } = await admin
@@ -164,13 +167,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Pictures from an older version of this file that the new one no longer uses.
-    const { data: oldFigures } = await admin.storage
-      .from(SOP_IMAGES_BUCKET)
-      .list("", { search: figurePrefix(fileId), limit: 1000 });
-    const staleFigures = (oldFigures || [])
-      .map((o) => o.name)
-      .filter((name) => name.startsWith(figurePrefix(fileId)) && !figureNames.includes(name));
-    if (staleFigures.length) await admin.storage.from(SOP_IMAGES_BUCKET).remove(staleFigures);
+    await removeFigures(admin, fileId, previousFigures, [...figureNames, ...figureRefs([text])]);
 
     const dept = adminUser.department ? ` (แผนก: ${adminUser.department})` : "";
     const figureNote = figureNames.length ? ` รูป ${figureNames.length} รูป` : "";

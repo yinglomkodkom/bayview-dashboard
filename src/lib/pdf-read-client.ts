@@ -10,7 +10,8 @@ import {
   stripFence,
   tidyCodeHeadings,
 } from "@/lib/pdf-convert";
-import { figurePrefix, fileIdFromName } from "@/lib/sop-file-id";
+import { figureName, storeFigure, toBlob } from "@/lib/figure-store-client";
+import { fileIdFromName } from "@/lib/sop-file-id";
 
 // Copied from node_modules/pdfjs-dist/build into public/ so both hosts serve it
 // the same way. Keep it in step with the pdfjs-dist version in package.json.
@@ -19,7 +20,6 @@ const PDF_WORKER_URL = "/pdf.worker.min.mjs";
 const MIN_FIGURE_WIDTH = 100;
 const MIN_FIGURE_HEIGHT = 50;
 const PREVIEW_MAX_SIDE = 768;
-const MAX_STORED_BYTES = 1024 * 1024; // LINE's limit for a preview image
 const REPEATED_ON_PAGES = 3; // the same picture this often is a logo, not content
 const GOOD_COVERAGE = 97;
 
@@ -81,12 +81,6 @@ function toCanvas(image: DecodedImage): HTMLCanvasElement | null {
   layer.getContext("2d")?.putImageData(pixels, 0, 0);
   ctx.drawImage(layer, 0, 0);
   return canvas;
-}
-
-function toBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("แปลงรูปไม่สำเร็จ"))), type, quality);
-  });
 }
 
 async function readPdf(file: File): Promise<PdfContent> {
@@ -182,24 +176,6 @@ async function convertBatch(
   return stripFence(data.markdown);
 }
 
-async function storeFigure(name: string, canvas: HTMLCanvasElement): Promise<void> {
-  const form = new FormData();
-  form.append("name", name);
-  form.append("image", await figureFile(name, canvas), name);
-  const res = await fetch("/api/documents/figure", { method: "POST", body: form });
-  const data = await res.json().catch(() => null);
-  if (!data?.success) throw new Error(data?.error || `เก็บรูปไม่สำเร็จ (HTTP ${res.status})`);
-}
-
-async function figureFile(name: string, canvas: HTMLCanvasElement): Promise<Blob> {
-  if (name.endsWith(".png")) return toBlob(canvas, "image/png");
-  for (const quality of [0.85, 0.7, 0.5]) {
-    const blob = await toBlob(canvas, "image/jpeg", quality);
-    if (blob.size <= MAX_STORED_BYTES) return blob;
-  }
-  throw new Error("รูปในไฟล์ใหญ่เกิน 1 MB");
-}
-
 export interface PdfConversion {
   markdown: string;
   figureNames: string[];
@@ -268,10 +244,7 @@ export async function convertPdf(
 
   const fileNameOf = new Map<string, string>();
   for (const [i, label] of usable.entries()) {
-    const canvas = byLabel.get(label)!.canvas;
-    const number = String(i + 1).padStart(2, "0");
-    const png = (await toBlob(canvas, "image/png")).size <= MAX_STORED_BYTES;
-    fileNameOf.set(label, `${figurePrefix(fileId)}${number}.${png ? "png" : "jpg"}`);
+    fileNameOf.set(label, await figureName(fileId, i + 1, byLabel.get(label)!.canvas));
   }
 
   let stored = 0;
