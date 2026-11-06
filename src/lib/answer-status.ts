@@ -16,10 +16,14 @@ const NO_DATA =
 const DENIES = /(ยังไม่มี|ไม่มี|ไม่พบ)/;
 const REFERS = /(ติดต่อ(ที่)?แผนก|สอบถาม(ได้)?(ที่|กับ|ผ่าน)แผนก)/;
 
+// The line "Build LINE Messages" adds under an answer reused from an admin
+// (admin_answers). An admin's "ไม่มีครับ" is an answer, not a gap in the SOP.
+const FROM_ADMIN_ANSWER = /มาจากที่แอดมินเคยตอบคำถามคล้ายกัน|an earlier admin answer to a similar question/;
+
 export function soundsNotFound(answer: string | null | undefined): boolean {
   const text = (answer || "").trim();
   // Answered from general practice: the user got an answer, so not Not Found.
-  if (!text || OUTSIDE_SOP.test(text)) return false;
+  if (!text || OUTSIDE_SOP.test(text) || FROM_ADMIN_ANSWER.test(text)) return false;
   if (NO_DATA.test(text.slice(0, 150))) return true;
   return DENIES.test(text.slice(0, 90)) && REFERS.test(text);
 }

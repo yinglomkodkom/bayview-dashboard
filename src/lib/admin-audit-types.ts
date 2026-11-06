@@ -153,6 +153,13 @@ export function getActionMeta(actionType: string) {
         badgeColor:
           "bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800/60",
       };
+    case "admin_answer_memory":
+      return {
+        label: "คำตอบที่บอทใช้ซ้ำ",
+        category: "reply",
+        badgeColor:
+          "bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800/60",
+      };
     default:
       return {
         label: actionType,

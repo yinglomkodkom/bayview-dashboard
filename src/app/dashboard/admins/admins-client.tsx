@@ -153,6 +153,8 @@ function getFailedActionLabel(actionType: string, defaultLabel: string) {
       return "เพิ่มพนักงานไม่สำเร็จ";
     case "admin_reply":
       return "ตอบกลับข้อความไม่สำเร็จ";
+    case "admin_answer_memory":
+      return "บันทึกคำตอบให้บอทใช้ไม่สำเร็จ";
     default:
       return `${defaultLabel} (ไม่สำเร็จ)`;
   }

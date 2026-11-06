@@ -9,6 +9,7 @@ import {
   MAX_ADMIN_REPLY_LENGTH,
   type AdminProfile,
 } from "@/lib/admin-reply";
+import { rememberAnswer } from "@/lib/admin-answers";
 
 // Where the n8n "admin-reply" webhook lives. N8N_ADMIN_REPLY_URL wins, except
 // when it points at a host only this machine can reach (host.docker.internal,
@@ -188,18 +189,45 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // "Let the bot reuse this answer" (ticked unless the admin unticked it for a
+    // personal answer). The reply has already gone out, so a failure here is
+    // only a warning: the admin can save it again from the answered list.
+    let remembered = false;
+    let warning: string | undefined;
+    if (body.remember !== false) {
+      try {
+        await rememberAnswer(db, {
+          chatLogId,
+          question: log.user_message,
+          answer: reply,
+          answeredBy: repliedBy,
+          userId: user.id,
+        });
+        remembered = true;
+      } catch (error) {
+        console.error("Admin reply sent but not saved for the bot:", error);
+        warning = "ส่งถึงผู้ใช้แล้ว แต่บันทึกให้บอทใช้ไม่สำเร็จ กด \"ให้บอทใช้คำตอบนี้\" ในแท็บตอบแล้วอีกครั้ง";
+      }
+    }
+
     const { logAdminActivity } = await import("@/lib/admin-audit");
     await logAdminActivity({
       action_type: "admin_reply",
       target: `LINE User (${lineUserId})`,
-      details: `ตอบกลับคำถาม Not Found "${log.user_message.slice(0, 60)}${log.user_message.length > 60 ? "..." : ""}" ด้วยข้อความ: "${reply.slice(0, 80)}${reply.length > 80 ? "..." : ""}"`,
+      details: `ตอบกลับคำถาม Not Found "${log.user_message.slice(0, 60)}${log.user_message.length > 60 ? "..." : ""}" ด้วยข้อความ: "${reply.slice(0, 80)}${reply.length > 80 ? "..." : ""}"${remembered ? " (ให้บอทใช้คำตอบนี้)" : ""}`,
       status: "success",
       email: admin.email,
       admin_name: adminName,
       user_id: user.id,
     });
 
-    return NextResponse.json({ success: true, admin_replied_at: repliedAt, admin_replied_by: repliedBy });
+    return NextResponse.json({
+      success: true,
+      admin_replied_at: repliedAt,
+      admin_replied_by: repliedBy,
+      remembered,
+      ...(warning ? { warning } : {}),
+    });
   } catch (error) {
     console.error("Admin reply API error:", error);
     const message = error instanceof Error ? error.message : "Internal server error";

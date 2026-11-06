@@ -47,7 +47,7 @@ export default async function RepliesPage() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const [logsResult, employeesResult, adminResult] = await Promise.all([
+    const [logsResult, employeesResult, adminResult, savedResult] = await Promise.all([
       // success rows are fetched too: rows logged by the older workflow were
       // filed as success even when the bot could not answer, and correctStatus
       // re-files them the same way Users & Logs does.
@@ -68,9 +68,16 @@ export default async function RepliesPage() {
         .select("email, emp_id, name, name_th, position, department")
         .eq("user_id", user?.id ?? "")
         .maybeSingle(),
+      // Answers the bot reuses for similar questions (admins may read them).
+      supabase.from("admin_answers").select("chat_log_id, answer, updated_at"),
     ]);
     if (logsResult.error) throw logsResult.error;
     admin = (adminResult.data as AdminProfile | null) ?? null;
+    if (savedResult.error) console.error("Failed to load saved admin answers:", savedResult.error);
+    const saved = new Map<string, { answer: string; updated_at: string }>();
+    ((savedResult.data as { chat_log_id: string; answer: string; updated_at: string }[]) || []).forEach((row) =>
+      saved.set(row.chat_log_id, row)
+    );
 
     const byLineId = new Map<string, EmployeeRow>();
     ((employeesResult.data as EmployeeRow[]) || []).forEach((e) => {
@@ -94,6 +101,8 @@ export default async function RepliesPage() {
           adminRepliedAt: log.admin_replied_at,
           adminRepliedBy: log.admin_replied_by,
           canQuote: !!log.quote_token?.trim(),
+          savedAnswer: saved.get(log.id)?.answer ?? null,
+          savedAt: saved.get(log.id)?.updated_at ?? null,
         };
       });
   } catch (error) {
