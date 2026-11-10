@@ -11,10 +11,10 @@ export const metadata: Metadata = { title: "ประวัติการสน
 
 export const dynamic = "force-dynamic";
 
-// "timeout" is absent on purpose — timed-out requests stay in chat_logs for
-// troubleshooting in Supabase but are never shown in the dashboard, so
-// ?status=timeout falls back to "all" rather than rendering an empty table.
-const STATUS_VALUES = ["all", "success", "not_found", "unauthorized"] as const;
+// "timeout" rows (the user got no reply: the AI or a flow step failed or hung)
+// are shown here with their reason, so failures can be followed up. The
+// Overview charts and counts still leave them out.
+const STATUS_VALUES = ["all", "success", "not_found", "unauthorized", "timeout"] as const;
 type StatusFilterType = (typeof STATUS_VALUES)[number];
 
 /** Today in Bangkok as YYYY-MM-DD — the format the log table compares against. */
@@ -58,14 +58,14 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
     const supabase = await createClient();
 
     const [logsResult, allIdsResult, employeeTestResult] = await Promise.all([
-      // Fetch all chat logs without limit, failed requests excluded
+      // Fetch all chat logs without limit, failed requests included
       fetchAllRows((from, to) =>
-        supabase.from("chat_logs").select("*").neq("status", "timeout").order("created_at", { ascending: false }).order("id", { ascending: false })
+        supabase.from("chat_logs").select("*").order("created_at", { ascending: false }).order("id", { ascending: false })
           .range(from, to)
       ),
       // Ids only, no cap — just enough to state the true totals honestly
       fetchAllRows((from, to) =>
-        supabase.from("chat_logs").select("line_user_id").neq("status", "timeout").order("created_at").order("id")
+        supabase.from("chat_logs").select("line_user_id").order("created_at").order("id")
           .range(from, to)
       ),
       // Employee list directly from employee_test

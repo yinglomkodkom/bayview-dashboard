@@ -109,8 +109,8 @@ export default async function DashboardPage() {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     // Fetch all data in parallel from employee_test and chat_logs
-    // Timed-out requests stay in chat_logs for troubleshooting in Supabase, but
-    // the dashboard never shows them — so every query below excludes them.
+    // Timed-out requests (no reply) are listed in Users & Chat Logs with their
+    // reason, but the Overview leaves them out — so every query below excludes them.
     // Leaving them in would inflate Total Messages and put a series on the
     // usage chart and rows in Recent Activity that nothing else displays.
     const [

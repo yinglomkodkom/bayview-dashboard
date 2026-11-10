@@ -42,6 +42,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Timer,
+  TimerOff,
   Loader2,
 } from "lucide-react";
 import { DASHBOARD_DATA_REFRESH } from "@/lib/system-health-events";
@@ -67,7 +68,13 @@ const STATUS_FILTER_LABELS: Record<string, string> = {
   success: "Success",
   not_found: "Not Found",
   unauthorized: "Unauthorized",
+  timeout: "Time Out (บอทไม่ได้ตอบ)",
 };
+
+/** Why a timeout row got no reply; rows logged before reasons were kept have none. */
+function errorReason(log: ChatLog): string {
+  return cleanText(log.error_detail) || "ไม่มีรายละเอียด (บันทึกไว้ก่อนระบบเริ่มเก็บสาเหตุ)";
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -142,9 +149,9 @@ function getResponseTime(log: ChatLog): { seconds: number | null; formatted: str
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-// No "timeout": timed-out requests are kept in Supabase but filtered out of
-// every dashboard view, so there is nothing for that option to show.
-type StatusFilterType = "all" | "success" | "not_found" | "unauthorized";
+// "timeout": the user got no reply (the AI or a flow step failed or hung);
+// error_detail says why.
+type StatusFilterType = "all" | "success" | "not_found" | "unauthorized" | "timeout";
 
 interface EnrichedLog extends ChatLog {
   isStaff: boolean;
@@ -271,7 +278,6 @@ export function ChatLogsTable({
         supabase
           .from("chat_logs")
           .select("*")
-          .neq("status", "timeout")
           .order("created_at", { ascending: false })
           .order("id", { ascending: false })
           .range(from, to)
@@ -310,7 +316,6 @@ export function ChatLogsTable({
         { event: "INSERT", schema: "public", table: "chat_logs" },
         (payload) => {
           const newLog = correctStatus(payload.new as ChatLog);
-          if (String(newLog.status).toLowerCase() === "timeout") return;
           if (knownIds.current.has(newLog.id)) return;
           knownIds.current.add(newLog.id);
 
@@ -319,6 +324,10 @@ export function ChatLogsTable({
           const emp = empLineIdMapRef.current.get(normalizeLineId(newLog.line_user_id));
           const who = emp?.name?.trim() || guestLabel(newLog.line_user_id);
           const preview = String(newLog.user_message || "").replace(/^=+/, "").trim();
+          if (String(newLog.status).toLowerCase() === "timeout") {
+            toast.error(`บอทไม่ได้ตอบ ${who}`, { description: errorReason(newLog).slice(0, 120) });
+            return;
+          }
           toast.info(`ข้อความใหม่จาก ${who}`, {
             description: preview ? preview.slice(0, 80) : undefined,
           });
@@ -471,7 +480,7 @@ export function ChatLogsTable({
       // 4. Universal Search Bar Filter (Question, AI Response, Thai Name, English Name)
       if (q) {
         const question = (log.cleanMessage || log.user_message || "").toLowerCase();
-        const response = (log.cleanResponse || log.ai_response || "").toLowerCase();
+        const response = (log.cleanResponse || log.ai_response || log.error_detail || "").toLowerCase();
         const nameEn = (log.resolvedName || log.employee?.name || "").toLowerCase();
         const nameTh = (log.resolvedNameTh || log.employee?.name_th || log.employee?.nickname_th || "").toLowerCase();
         const lineDisplayName = (log.display_name || "").toLowerCase();
@@ -694,6 +703,7 @@ export function ChatLogsTable({
                   <SelectItem value="success">Success</SelectItem>
                   <SelectItem value="not_found">Not Found</SelectItem>
                   <SelectItem value="unauthorized">Unauthorized</SelectItem>
+                  <SelectItem value="timeout">{STATUS_FILTER_LABELS.timeout}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -801,9 +811,15 @@ export function ChatLogsTable({
 
                       {/* AI response — single line truncated */}
                       <td className="px-3.5 py-3 align-middle overflow-hidden">
-                        <p className="text-zinc-600 dark:text-zinc-300 font-normal truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-full" title={log.cleanResponse}>
-                          {log.cleanResponse || <span className="text-zinc-500 dark:text-zinc-400 italic">— ไม่มีการตอบ —</span>}
-                        </p>
+                        {log.status === "timeout" && !log.cleanResponse ? (
+                          <p className="text-rose-700 dark:text-rose-300 font-normal truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-full" title={errorReason(log)}>
+                            {errorReason(log)}
+                          </p>
+                        ) : (
+                          <p className="text-zinc-600 dark:text-zinc-300 font-normal truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-full" title={log.cleanResponse}>
+                            {log.cleanResponse || <span className="text-zinc-500 dark:text-zinc-400 italic">— ไม่มีการตอบ —</span>}
+                          </p>
+                        )}
                       </td>
 
                       {/* Response Time Badge */}
@@ -1103,6 +1119,25 @@ function ChatLogDetailDialog({ log, open, onOpenChange }: ChatLogDetailDialogPro
               )}
             </div>
           </div>
+
+          {log.status === "timeout" && (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-rose-700 dark:text-rose-300">
+                <TimerOff className="w-3.5 h-3.5" />
+                ทำไมบอทไม่ได้ตอบ
+              </div>
+              <div className="rounded-xl border border-rose-200 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-950/30 px-4 py-3 space-y-1.5">
+                <p className="text-sm text-rose-900 dark:text-rose-100 leading-relaxed whitespace-pre-wrap break-words">
+                  {errorReason(log)}
+                </p>
+                {log.n8n_execution_id && (
+                  <p className="text-xs text-rose-700/80 dark:text-rose-300/80">
+                    ดูรายละเอียดใน n8n: Executions <span className="font-mono font-bold select-all">#{log.n8n_execution_id}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

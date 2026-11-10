@@ -47,6 +47,10 @@ export interface ChatLog {
   response_time?: number | null;
   response_time_seconds?: number | null;
   response_time_ms?: number | null;
+  /** timeout rows: why the user got no reply (the n8n step and its error). */
+  error_detail?: string | null;
+  /** The n8n execution, to look the run up under Executions in n8n. */
+  n8n_execution_id?: string | null;
 }
 
 export interface SystemSetting {

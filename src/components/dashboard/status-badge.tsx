@@ -31,7 +31,8 @@ export const STATUS_META = {
       "text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/50 border-purple-200 dark:border-purple-800/60",
     iconClass: "text-purple-600 dark:text-purple-400",
   },
-  // The AI (Google Gemini) did not answer in time, so the user got no reply.
+  // The user got no reply: the AI (Google Gemini) or a flow step failed or
+  // hung. chat_logs.error_detail says which.
   timeout: {
     label: "Time Out",
     Icon: TimerOff,
@@ -46,10 +47,10 @@ export const STATUS_META = {
 export type StatusKey = keyof typeof STATUS_META;
 
 // Fixed display order shared by every status list/legend/chart in the app.
-// "timeout" is intentionally missing: those rows are still written to
-// chat_logs and can be inspected in Supabase, but they are filtered out of
-// every dashboard query, so nothing should draw a legend chip or series for
-// them. STATUS_META still carries the timeout entry because normalizeStatusKey
+// "timeout" is intentionally missing: those rows are shown only in Users &
+// Chat Logs (with their reason) and are filtered out of the Overview counts
+// and charts, so nothing should draw a legend chip or series for them.
+// STATUS_META still carries the timeout entry because normalizeStatusKey
 // falls back to it for any status string the app does not recognise.
 export const STATUS_ORDER: StatusKey[] = ["success", "not_found", "unauthorized"];
 
