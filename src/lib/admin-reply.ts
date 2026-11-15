@@ -38,11 +38,16 @@ export function buildAdminReplyText(
   const excerpt = q.length > 200 ? `${q.slice(0, 200)}…` : q;
   // Name only: position and department are left out on purpose.
   const who = admin.name_th?.trim() || admin.name?.trim();
+  // A plain LINE text, laid out as a header, the answer between two rules,
+  // and who answered underneath.
+  const RULE = "━━━━━━━━━━━━";
   return [
-    who ? `คำตอบจากแอดมิน คุณ${who}` : "คำตอบจากแอดมิน",
+    "💬 คำตอบจากแอดมิน",
     !quoted && excerpt ? `คำถามของคุณ: "${excerpt}"` : null,
-    "",
+    RULE,
     reply.trim(),
+    RULE,
+    who ? `ตอบโดย คุณ${who}` : null,
   ]
     .filter((line) => line !== null)
     .join("\n");
