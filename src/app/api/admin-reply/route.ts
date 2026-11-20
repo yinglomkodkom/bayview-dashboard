@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { correctStatus } from "@/lib/answer-status";
 import {
   adminDisplayName,
+  buildAdminReplyFlex,
   buildAdminReplyText,
   MAX_ADMIN_REPLY_LENGTH,
   type AdminProfile,
@@ -125,7 +126,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const push = (quoteToken: string | null) =>
+    // The reply goes out as a card (`flex`). `text` is sent with it: an n8n
+    // flow older than Main.liff-menu-33 ignores `flex` and pushes the text.
+    const push = (quoteToken: string | null, asCard: boolean) =>
       fetch(N8N_ADMIN_REPLY_URL, {
         method: "POST",
         headers: {
@@ -136,19 +139,20 @@ export async function POST(request: NextRequest) {
           line_user_id: lineUserId,
           text: buildAdminReplyText(log.user_message, reply, admin, !!quoteToken),
           quote_token: quoteToken,
+          ...(asCard ? { flex: buildAdminReplyFlex(log.user_message, reply, admin) } : {}),
         }),
         signal: AbortSignal.timeout(15000),
       });
 
-    // Quote the employee's question when its quoteToken was logged. If LINE
-    // refuses the quote (502 from the push node), send once more as plain text
-    // with the question written out instead — the answer matters more than
-    // the quote.
+    // If LINE refuses the card (502 from the push node), fall back to plain
+    // text quoting the question, then to plain text with the question written
+    // out — the answer matters more than the look.
     const quoteToken = log.quote_token?.trim() || null;
     let pushRes: Response;
     try {
-      pushRes = await push(quoteToken);
-      if (quoteToken && pushRes.status === 502) pushRes = await push(null);
+      pushRes = await push(quoteToken, true);
+      if (pushRes.status === 502) pushRes = await push(quoteToken, false);
+      if (quoteToken && pushRes.status === 502) pushRes = await push(null, false);
     } catch {
       return NextResponse.json(
         { success: false, error: `ติดต่อ n8n ไม่ได้ (${new URL(N8N_ADMIN_REPLY_URL).host}) ตรวจสอบว่า n8n และ ngrok เปิดอยู่ และ workflow ที่มี Admin Reply ถูก Activate แล้ว` },

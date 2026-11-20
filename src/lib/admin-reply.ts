@@ -52,3 +52,75 @@ export function buildAdminReplyText(
     .filter((line) => line !== null)
     .join("\n");
 }
+
+const LINK = /https?:\/\/[^\s<>"'`]+/g;
+
+/** Links in the reply, which a card's text cannot make clickable, as buttons. */
+export function replyLinks(reply: string): string[] {
+  const links: string[] = [];
+  for (const found of reply.match(LINK) || []) {
+    const uri = found.replace(/[.,;:)\]]+$/, "");
+    if (uri.length <= 1000 && !links.includes(uri)) links.push(uri);
+  }
+  return links.slice(0, 3);
+}
+
+/**
+ * The same reply as a LINE Flex card, like the bot's own answers. A card
+ * cannot quote the question (LINE allows quoteToken only on text), so the
+ * question is always shown at the top of the card. The plain text from
+ * buildAdminReplyText stays the fallback when LINE refuses the card.
+ */
+export function buildAdminReplyFlex(
+  question: string | null | undefined,
+  reply: string,
+  admin: AdminProfile
+): Record<string, unknown> {
+  const q = String(question || "").replace(/^=+/, "").trim();
+  const excerpt = q.length > 200 ? `${q.slice(0, 200)}…` : q;
+  const who = admin.name_th?.trim() || admin.name?.trim();
+  const answer = reply.trim();
+  const contents: Record<string, unknown>[] = [
+    { type: "text", text: "💬 คำตอบจากแอดมิน", weight: "bold", size: "md", color: "#0C645B" },
+  ];
+  if (excerpt) {
+    contents.push({
+      type: "box",
+      layout: "vertical",
+      backgroundColor: "#F2F4F3",
+      cornerRadius: "md",
+      paddingAll: "md",
+      spacing: "xs",
+      contents: [
+        { type: "text", text: "คำถามของคุณ", size: "xs", color: "#777777" },
+        { type: "text", text: excerpt, wrap: true, size: "sm", color: "#444444" },
+      ],
+    });
+  }
+  contents.push({ type: "separator", margin: "lg" });
+  contents.push({ type: "text", text: answer, wrap: true, size: "md", margin: "lg" });
+  for (const uri of replyLinks(answer)) {
+    const host = uri.replace(/^https?:\/\//, "").split("/")[0];
+    contents.push({
+      type: "button",
+      style: "link",
+      height: "sm",
+      action: { type: "uri", label: `เปิด ${host}`.slice(0, 40), uri },
+    });
+  }
+  if (who) {
+    contents.push(
+      { type: "separator", margin: "lg" },
+      { type: "text", text: `ตอบโดย คุณ${who}`, wrap: true, size: "sm", color: "#777777", margin: "md" }
+    );
+  }
+  return {
+    type: "flex",
+    altText: `คำตอบจากแอดมิน: ${answer.replace(/\s+/g, " ")}`.slice(0, 400),
+    contents: {
+      type: "bubble",
+      size: "giga",
+      body: { type: "box", layout: "vertical", spacing: "md", contents },
+    },
+  };
+}

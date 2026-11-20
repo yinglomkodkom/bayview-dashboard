@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   adminDisplayName,
-  buildAdminReplyText,
+  replyLinks,
   MAX_ADMIN_REPLY_LENGTH,
   type AdminProfile,
 } from "@/lib/admin-reply";
@@ -273,15 +273,38 @@ export function RepliesClient({
                           />
                           {draft.trim() && admin && adminName && (
                             <div className="rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700 p-3">
-                              <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">
-                                ข้อความที่พนักงานจะได้รับใน LINE
-                                {q.canQuote
-                                  ? " · ขึ้นเป็นการตอบกลับข้อความที่พนักงานถาม"
-                                  : " · คำถามนี้เข้ามาก่อนเปิดระบบอ้างอิงข้อความ จึงพิมพ์คำถามไว้ในข้อความแทน"}
+                              <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-2">
+                                การ์ดที่พนักงานจะได้รับใน LINE
                               </p>
-                              <p className="text-sm whitespace-pre-line text-zinc-700 dark:text-zinc-300">
-                                {buildAdminReplyText(q.question, draft, admin, q.canQuote)}
-                              </p>
+                              {/* Mirrors buildAdminReplyFlex, which the API sends. */}
+                              <div className="max-w-md rounded-2xl bg-white text-zinc-800 shadow-sm ring-1 ring-zinc-200 p-4 space-y-3">
+                                <p className="font-bold text-[#0C645B]">💬 คำตอบจากแอดมิน</p>
+                                {q.question.trim() && (
+                                  <div className="rounded-md bg-[#F2F4F3] p-3">
+                                    <p className="text-xs text-zinc-500">คำถามของคุณ</p>
+                                    <p className="text-sm text-zinc-600 whitespace-pre-line break-words">
+                                      {q.question.replace(/^=+/, "").trim().length > 200
+                                        ? `${q.question.replace(/^=+/, "").trim().slice(0, 200)}…`
+                                        : q.question.replace(/^=+/, "").trim()}
+                                    </p>
+                                  </div>
+                                )}
+                                <hr className="border-zinc-200" />
+                                <p className="text-sm whitespace-pre-line break-words">{draft.trim()}</p>
+                                {replyLinks(draft).map((uri) => (
+                                  <p key={uri} className="text-sm text-center text-[#42659a]">
+                                    {`เปิด ${uri.replace(/^https?:\/\//, "").split("/")[0]}`.slice(0, 40)}
+                                  </p>
+                                ))}
+                                {(admin.name_th?.trim() || admin.name?.trim()) && (
+                                  <>
+                                    <hr className="border-zinc-200" />
+                                    <p className="text-xs text-zinc-500">
+                                      ตอบโดย คุณ{admin.name_th?.trim() || admin.name?.trim()}
+                                    </p>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           )}
                           <div className="flex flex-col-reverse sm:flex-row gap-3 sm:items-center sm:justify-between">
