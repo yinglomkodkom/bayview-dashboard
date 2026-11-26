@@ -334,6 +334,11 @@ export default function DashboardLayout({
   }, [pathname, fetchPendingCount]);
 
   useEffect(() => {
+    // A bulk change (e.g. deleting 200 rows) arrives as one event per row.
+    // Counting once per event fired hundreds of full-table reads per open tab
+    // and stalled Supabase, so events are collapsed into one count after the
+    // burst settles.
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const supabase = createClient();
     const channel = supabase
       .channel("sidebar_pending_replies_count")
@@ -341,12 +346,17 @@ export default function DashboardLayout({
         "postgres_changes",
         { event: "*", schema: "public", table: "chat_logs" },
         () => {
-          fetchPendingCount();
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(() => {
+            timer = null;
+            fetchPendingCount();
+          }, 2000);
         }
       )
       .subscribe();
 
     return () => {
+      if (timer) clearTimeout(timer);
       supabase.removeChannel(channel);
     };
   }, [fetchPendingCount]);
